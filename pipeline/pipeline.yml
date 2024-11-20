@@ -1,7 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Gaming Club CI/CD Pipeline
+
+Parameters:
+  GitHubUsername:
+    Type: String
+    Description: GitHub Username owning the repository.
+    Default: Dunmersc2
+
+  GitHubRepo:
+    Type: String
+    Description: Name of the GitHub repository.
+    Default: gaming-club-booking-system
+
+  GitHubTokenSecretName:
+    Type: String
+    Default: BookingClubGitHubToken
+    Description: The name of the Secrets Manager secret containing the GitHub OAuth token.
+
 Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
-    DependsOn: CodePipelineRole
     Properties:
       Name: GamingClubPipeline
       RoleArn: !GetAtt CodePipelineRole.Arn
@@ -53,7 +71,6 @@ Resources:
                 StackName: BookingSystem
                 Capabilities: CAPABILITY_NAMED_IAM
                 TemplatePath: BuildOutput::cloudformation/main.yml
-              RoleArn: !GetAtt CodePipelineRole.Arn
 
   CodePipelineRole:
     Type: AWS::IAM::Role
@@ -72,8 +89,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:*
-                  - codebuild:*
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - codebuild:StartBuild
                   - cloudformation:*
                   - secretsmanager:GetSecretValue
                   - iam:PassRole
@@ -113,8 +132,11 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:*
-                  - logs:*
-                  - cloudformation:*
-                  - lambda:*
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudformation:DescribeStacks
+                  - lambda:InvokeFunction
                 Resource: '*'
