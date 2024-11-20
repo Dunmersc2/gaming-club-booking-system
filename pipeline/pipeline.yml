@@ -20,7 +20,7 @@ Resources:
                 Owner: !Ref GitHubUsername
                 Repo: !Ref GitHubRepo
                 Branch: dev
-                OAuthToken: !Sub "{{resolve:secretsmanager:${GitHubTokenSecretName}:SecretString:GitHubToken}}"
+                OAuthToken: !Sub '{{resolve:secretsmanager:${GitHubTokenSecretName}:SecretString:GitHubToken}}'
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: Build
@@ -58,7 +58,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -67,7 +67,7 @@ Resources:
       Policies:
         - PolicyName: CodePipelinePolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -75,7 +75,8 @@ Resources:
                   - codebuild:*
                   - cloudformation:*
                   - secretsmanager:GetSecretValue
-                Resource: "*"
+                  - iam:PassRole
+                Resource: '*'
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -98,7 +99,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -107,7 +108,7 @@ Resources:
       Policies:
         - PolicyName: CodeBuildPolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -115,4 +116,4 @@ Resources:
                   - logs:*
                   - cloudformation:*
                   - lambda:*
-                Resource: "*"
+                Resource: '*'
