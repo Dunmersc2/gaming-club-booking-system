@@ -1,96 +1,134 @@
 Parameters:
+  GitHubUsername:
+    Type: String
+    Description: "GitHub Username owning the repository."
+    Default: "Dunmersc2"
+
+  GitHubRepo:
+    Type: String
+    Description: "Name of the GitHub repository."
+    Default: "gaming-club-booking-system"
+
   GitHubTokenSecretName:
     Type: String
-    Default: GamingClubGitHubToken
+    Default: "BookingClubGitHubToken"
     Description: The name of the Secrets Manager secret containing the GitHub OAuth token.
 
+
 Resources:
-  # DynamoDB Table
-  BookingTable:
-    Type: AWS::DynamoDB::Table
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
     Properties:
-      TableName: BookingTable
-      AttributeDefinitions:
-        - AttributeName: table_id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: table_id
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
+      Name: GamingClubPipeline
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: gaming-club-ci-artifacts
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              Configuration:
+                Owner: !Ref GitHubUsername
+                Repo: !Ref GitHubRepo
+                Branch: main
+                OAuthToken: !Sub "{{resolve:secretsmanager:${GitHubTokenSecretName}:SecretString:GitHubToken}}"
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: GamingClubCodeBuild
+        - Name: Deploy
+          Actions:
+            - Name: DeployInfrastructure
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: BookingSystem
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplatePath: BuildOutput::cloudformation/main.yml
 
-  # S3 Bucket for Artifacts
-  ArtifactsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: gaming-club-ci-artifacts
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
-  # Lambda Execution Role
-  LambdaExecutionRole:
+  CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${AWS::StackName}-LambdaExecutionRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
+              Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: LambdaDynamoDBAccess
+        - PolicyName: CodePipelinePolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:Scan
-                Resource: !GetAtt BookingTable.Arn
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${BookingLambda}"
+                  - s3:*
+                  - codebuild:*
+                  - cloudformation:*
+                  - secretsmanager:GetSecretValue
+                Resource: "*"
 
-  # Lambda Function
-  BookingLambda:
-    Type: AWS::Lambda::Function
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
     Properties:
-      FunctionName: BookingLambda
-      Handler: lambda_function.lambda_handler
-      Runtime: python3.9
-      Code:
-        S3Bucket: gaming-club-ci-artifacts
-        S3Key: lambda_code.zip
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Name: GamingClubCodeBuild
+      Source:
+        Type: CODEPIPELINE
       Environment:
-        Variables:
-          TABLE_NAME: BookingTable
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        EnvironmentVariables:
+          - Name: BUCKET_NAME
+            Value: gaming-club-ci-artifacts
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
 
-  # Secrets Manager Policy
-  SecretsManagerPolicy:
-    Type: AWS::IAM::Policy
+  CodeBuildRole:
+    Type: AWS::IAM::Role
     Properties:
-      PolicyName: SecretsManagerPolicy
-      Roles:
-        - !Ref LambdaExecutionRole
-      PolicyDocument:
+      AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Action: secretsmanager:GetSecretValue
-            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubTokenSecretName}"
-
-Outputs:
-  ApiGatewayUrl:
-    Description: URL for the API Gateway
-    Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-    Export:
-      Name: BookingApiUrl
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - logs:*
+                  - cloudformation:*
+                  - lambda:*
+                Resource: "*"

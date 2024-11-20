@@ -2,7 +2,7 @@ Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: BookingPipeline
+      Name: GamingClubPipeline
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -17,10 +17,10 @@ Resources:
                 Provider: GitHub
                 Version: 1
               Configuration:
-                Owner: <GitHub_Username>
-                Repo: <Repository_Name>
+                Owner: !Ref GitHubUsername
+                Repo: !Ref GitHubRepo
                 Branch: main
-                OAuthToken: !Sub "{{resolve:secretsmanager:GamingClubGitHubToken:SecretString}}"
+                OAuthToken: !Sub "{{resolve:secretsmanager:${GitHubTokenSecretName}:SecretString:GitHubToken}}"
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: Build
