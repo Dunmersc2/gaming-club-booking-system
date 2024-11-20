@@ -51,7 +51,7 @@ Resources:
                 ActionMode: CREATE_UPDATE
                 StackName: BookingSystem
                 Capabilities: CAPABILITY_NAMED_IAM
-                TemplatePath: BuildOutput::cloudformation/main.ym
+                TemplatePath: BuildOutput::cloudformation/main.yml
               RoleArn: !GetAtt CodePipelineRole.Arn
 
   CodePipelineRole:
