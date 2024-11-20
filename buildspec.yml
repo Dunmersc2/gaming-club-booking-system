@@ -1,0 +1,19 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+      - echo "Installing dependencies..."
+      - pip install -r requirements.txt -t .
+
+  build:
+    commands:
+      - echo "Building the deployment package..."
+      - zip -r lambda_code.zip .
+
+artifacts:
+  files:
+    - lambda_code.zip
+
