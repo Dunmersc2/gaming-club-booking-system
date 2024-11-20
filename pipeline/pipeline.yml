@@ -19,7 +19,7 @@ Resources:
               Configuration:
                 Owner: !Ref GitHubUsername
                 Repo: !Ref GitHubRepo
-                Branch: main
+                Branch: dev
                 OAuthToken: !Sub "{{resolve:secretsmanager:${GitHubTokenSecretName}:SecretString:GitHubToken}}"
               OutputArtifacts:
                 - Name: SourceOutput
@@ -51,7 +51,8 @@ Resources:
                 ActionMode: CREATE_UPDATE
                 StackName: BookingSystem
                 Capabilities: CAPABILITY_NAMED_IAM
-                TemplatePath: BuildOutput::cloudformation/main.yml
+                TemplatePath: BuildOutput::cloudformation/main.ym
+              RoleArn: !GetAtt CodePipelineRole.Arn
 
   CodePipelineRole:
     Type: AWS::IAM::Role
