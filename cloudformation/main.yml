@@ -1,0 +1,96 @@
+Parameters:
+  GitHubTokenSecretName:
+    Type: String
+    Default: GamingClubGitHubToken
+    Description: The name of the Secrets Manager secret containing the GitHub OAuth token.
+
+Resources:
+  # DynamoDB Table
+  BookingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BookingTable
+      AttributeDefinitions:
+        - AttributeName: table_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: table_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # S3 Bucket for Artifacts
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: gaming-club-ci-artifacts
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-LambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaDynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                Resource: !GetAtt BookingTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${BookingLambda}"
+
+  # Lambda Function
+  BookingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BookingLambda
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Code:
+        S3Bucket: gaming-club-ci-artifacts
+        S3Key: lambda_code.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: BookingTable
+
+  # Secrets Manager Policy
+  SecretsManagerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SecretsManagerPolicy
+      Roles:
+        - !Ref LambdaExecutionRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GitHubTokenSecretName}"
+
+Outputs:
+  ApiGatewayUrl:
+    Description: URL for the API Gateway
+    Value: !Sub "https://${BookingApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Export:
+      Name: BookingApiUrl
